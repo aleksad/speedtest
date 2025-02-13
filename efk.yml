@@ -1,0 +1,57 @@
+ 
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: elasticsearch:8.17.1
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  fluentd:
+    image: fluent/fluentd:v1.16-1
+    volumes:
+      - ./fluentd/conf/fluentd.conf:/fluentd/etc/fluent.conf
+      - fluentd_logs:/var/log/fluentd
+    ports:
+      - "24224:24224"
+    environment:
+      - ES_HOST=elasticsearch
+      - ES_PORT=9200
+      - ES_SCHEME=http
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    image: kibana:8.17.1
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - NODE_OPTIONS=--max-old-space-size=512
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: "localhost:24224"
+        tag: kibana
+
+volumes:
+  es_data:
+  fluentd_logs:
